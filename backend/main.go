@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
 	"encoding/json"
 	"io/ioutil"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 // Allowed companies and categories
@@ -68,15 +71,14 @@ func getProductsHandler(c *gin.Context) {
 	apiURL := fmt.Sprintf("http://20.244.56.144/test/companies/%s/categories/%s/products?top=%d&minPrice=%d&maxPrice=%d",
 		company, category, top, minPrice, maxPrice)
 
-	// Define the access token
-	accessToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiZXhwIjoxNzIzNzA0NjM3LCJpYXQiOjE3MjM3MDQzMzcsImlzcyI6IkFmZm9yZG1lZCIsImp0aSI6IjVjZTE0YzA4LTk0NjgtNDAzYS1iYjkzLThiNDBiNjY2MTk5YSIsInN1YiI6IjIxMzQxQTA1NzFAZ21yaXQuZWR1LmluIn0sImNvbXBhbnlOYW1lIjoiQWZmb3JkbWVkIiwiY2xpZW50SUQiOiI1Y2UxNGMwOC05NDY4LTQwM2EtYmI5My04YjQwYjY2NjE5OWEiLCJjbGllbnRTZWNyZXQiOiJHWnNVTFF1Y2hTU3NNdERVIiwib3duZXJOYW1lIjoiS2F0YXJpIExva2Vzd2FyYSBSYW8iLCJvd25lckVtYWlsIjoiMjEzNDFBMDU3MUBnbXJpdC5lZHUuaW4iLCJyb2xsTm8iOiIyMTM0MUEwNTcxIn0.kEmVew_dH8vJ8zjYVJrXxetADPdYu_mzenE1Fb0bFgA" // Replace with your actual access token
-
 	// Creating a new HTTP request
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
 		return
 	}
+	accessToken := os.Getenv("ACCESS_TOKEN")
+	fmt.Println(accessToken)
 
 	// Adding the access token to the request header
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
@@ -115,11 +117,91 @@ func getProductsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"products": products})
 }
 
-func main() {
-	router := gin.Default()
+func getProductByIDHandler(c *gin.Context) {
+	// Extract product ID from route parameters
+	productID := c.Param("productId")
 
+	// Validate the product ID format (assuming it's in the form "COMPANY-ID")
+	parts := strings.Split(productID, "-")
+	if len(parts) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID format"})
+		return
+	}
+
+	company := parts[0]
+	id := parts[1]
+
+	// Validate the company parameter
+	if !contains(COMPANIES, company) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid company parameter"})
+		return
+	}
+
+	// Define the API URL
+	apiURL := fmt.Sprintf("http://20.244.56.144/test/companies/%s/products/%s", company, id)
+
+	accessToken := os.Getenv("ACCESS_TOKEN")
+
+	if accessToken == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Access token not set"})
+		return
+	}
+
+	// Creating a new HTTP request
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
+		return
+	}
+
+	// Add the access token to the request header
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+
+	// Making the API call
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to make API request"})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Check if the response status is OK
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		c.JSON(resp.StatusCode, gin.H{"error": string(body)})
+		return
+	}
+
+	// Read the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read API response"})
+		return
+	}
+
+	// Parse the JSON response
+	var product map[string]interface{}
+	if err := json.Unmarshal(body, &product); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse API response"})
+		return
+	}
+
+	// Return the product details as a JSON response
+	c.JSON(http.StatusOK, gin.H{"product": product})
+}
+
+func main() {
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Error loading .env file: %s", err)
+	}
+
+	router := gin.Default()
 	// Define the route for fetching products
 	router.GET("/products", getProductsHandler)
+	router.GET("/products/:productId", getProductByIDHandler)
 
 	// Start the server
 	if err := router.Run(":3000"); err != nil {
