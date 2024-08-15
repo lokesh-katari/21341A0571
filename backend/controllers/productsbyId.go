@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lokesh-katari/21341A0571/utils"
 )
 
 func GetProductByIDHandler(c *gin.Context) {
@@ -49,7 +50,7 @@ func GetProductByIDHandler(c *gin.Context) {
 	}
 
 	// Add the access token to the request header
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", utils.GetToken()))
 
 	// Making the API call
 	client := &http.Client{}

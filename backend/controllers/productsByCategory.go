@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lokesh-katari/21341A0571/utils"
 )
 
 func contains(slice []string, item string) bool {
@@ -74,7 +75,7 @@ func GetProductsHandler(c *gin.Context) {
 	fmt.Println(accessToken)
 
 	// Adding the access token to the request header
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", utils.GetToken()))
 
 	// Making the API call
 	client := &http.Client{}
